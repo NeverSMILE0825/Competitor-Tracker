@@ -65,6 +65,19 @@
       <pre id="detail"></pre>
     </section>
     <section>
+      <h2>Telegram</h2>
+      <p>Create a bot with @BotFather, open it, and send /start. Alerts use the same text as the list below.</p>
+      <form id="telegram-form">
+        <input id="telegram-token" name="token" type="password" placeholder="Bot token" autocomplete="off" spellcheck="false">
+        <input id="telegram-chat" name="chatId" placeholder="Numeric chat id" spellcheck="false">
+        <button id="telegram-discover" type="button">Look up chat id</button>
+        <button id="telegram-save" type="submit">Save Telegram</button>
+        <button id="telegram-test" type="button">Send test</button>
+        <button id="telegram-off" type="button">Turn off</button>
+      </form>
+      <p id="telegram-note"></p>
+    </section>
+    <section>
       <h2>Alerts</h2>
       <ul id="alerts"></ul>
     </section>

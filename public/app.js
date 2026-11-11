@@ -61,7 +61,9 @@ async function refresh() {
   const watcher = health.watching ? `watching ${health.lastBlock ?? "…"}` : "watcher off";
   const behind = health.behind ? `, ${health.behind} blocks behind` : "";
   const problem = health.lastError ? ` · ${health.lastError}` : "";
-  statusNode.textContent = `${watcher}${behind}${problem}. DexTools is blank until a browser observation arrives. Income is the creator's net quote, gas excluded.`;
+  const telegram = health.telegram?.enabled ? `Telegram on for chat ${health.telegram.chatId}` : "Telegram off";
+  const telegramError = health.telegram?.lastError ? ` · ${health.telegram.lastError}` : "";
+  statusNode.textContent = `${watcher}${behind}${problem}. ${telegram}${telegramError}. DexTools is blank until a browser observation arrives. Income is the creator's net quote, gas excluded.`;
 
   competitorList.replaceChildren();
   for (const row of competitors) {
@@ -159,6 +161,63 @@ document.querySelector("#classify-form").addEventListener("submit", async (event
     await refresh();
   } catch (error) {
     note.textContent = error.message;
+  }
+});
+
+const telegramNote = document.querySelector("#telegram-note");
+
+document.querySelector("#telegram-discover").addEventListener("click", async () => {
+  telegramNote.textContent = "Looking up the chat that last messaged the bot…";
+  try {
+    const found = await request("/api/telegram/discover", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: document.querySelector("#telegram-token").value }),
+    });
+    document.querySelector("#telegram-chat").value = found.chatId;
+    telegramNote.textContent = `Chat id ${found.chatId}. Save it to send alerts there.`;
+  } catch (error) {
+    telegramNote.textContent = error.message;
+  }
+});
+
+document.querySelector("#telegram-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  telegramNote.textContent = "Checking the bot token with Telegram…";
+  try {
+    const saved = await request("/api/telegram", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: data.get("token"), chatId: data.get("chatId") }),
+    });
+    document.querySelector("#telegram-token").value = "";
+    telegramNote.textContent = `Saved. Alerts will go to chat ${saved.chatId}.`;
+    await refresh();
+  } catch (error) {
+    telegramNote.textContent = error.message;
+  }
+});
+
+document.querySelector("#telegram-test").addEventListener("click", async () => {
+  telegramNote.textContent = "Sending the test message…";
+  try {
+    await request("/api/telegram/test", { method: "POST" });
+    telegramNote.textContent = "Test message sent. It is not a token alert.";
+  } catch (error) {
+    telegramNote.textContent = error.message;
+  }
+});
+
+document.querySelector("#telegram-off").addEventListener("click", async () => {
+  try {
+    await request("/api/telegram", { method: "DELETE" });
+    document.querySelector("#telegram-chat").value = "";
+    telegramNote.textContent = "Telegram alerts are off.";
+    await refresh();
+  } catch (error) {
+    telegramNote.textContent = error.message;
   }
 });
 

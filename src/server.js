@@ -8,6 +8,9 @@ import { createEngine } from "./engine.js";
 import { createBlockscout } from "./sources/blockscout.js";
 import { createDexScreener } from "./sources/dexscreener.js";
 import { createRpc } from "./sources/rpc.js";
+import { telegramCall } from "./sources/telegram.js";
+import { assertTelegramConfig, assertTelegramToken } from "./core/telegram.js";
+import { createTelegramNotifier } from "./telegram.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(root, "public");
@@ -43,6 +46,12 @@ function millis(value) {
 
 export async function startServer(options = {}) {
   const db = openDatabase(options.dbPath ?? path.join(root, "data", "tracker.db"));
+  const telegram = createTelegramNotifier({
+    db,
+    call: options.telegramCall ?? telegramCall,
+    envToken: options.telegramEnv?.token ?? "",
+    envChatId: options.telegramEnv?.chatId ?? "",
+  });
   const engine = createEngine({
     db,
     rpc: options.rpc ?? createRpc(),
@@ -51,15 +60,42 @@ export async function startServer(options = {}) {
     goplus: options.goplus,
     dextools: options.dextools,
     trending: options.trending,
+    onAlerts: () => telegram.flush(),
   });
   if (options.watch !== false) engine.start();
+  telegram.start();
 
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://127.0.0.1");
       if (request.method === "OPTIONS") return send(response, 204, {});
       if (request.method === "GET" && url.pathname === "/api/health") {
-        return send(response, 200, { ok: true, ...engine.status });
+        return send(response, 200, { ok: true, ...engine.status, telegram: telegram.status() });
+      }
+      if (request.method === "GET" && url.pathname === "/api/telegram") {
+        return send(response, 200, telegram.status());
+      }
+      if (request.method === "DELETE" && url.pathname === "/api/telegram") {
+        return send(response, 200, telegram.disable());
+      }
+      if (request.method === "POST" && url.pathname === "/api/telegram/discover") {
+        const body = await readBody(request);
+        const token = assertTelegramToken(String(body.token ?? "").trim() || telegram.token() || "");
+        const found = await telegram.discover(token);
+        if (!found.ok) return send(response, 400, { error: found.description });
+        return send(response, 200, { chatId: found.chatId });
+      }
+      if (request.method === "POST" && url.pathname === "/api/telegram/test") {
+        await telegram.sendTest();
+        return send(response, 200, { ok: true, ...telegram.status() });
+      }
+      if (request.method === "POST" && url.pathname === "/api/telegram") {
+        const body = await readBody(request);
+        const token = String(body.token ?? "").trim() || telegram.token() || "";
+        const config = assertTelegramConfig(token, body.chatId);
+        const me = await telegram.check(config.token);
+        if (!me.ok) return send(response, 400, { error: me.description });
+        return send(response, 200, telegram.save(config));
       }
       if (request.method === "GET" && url.pathname === "/api/competitors") {
         return send(response, 200, db.listCompetitors());
@@ -128,8 +164,9 @@ export async function startServer(options = {}) {
       }
       send(response, 404, { error: "Not found" });
     } catch (error) {
-      const status = /required|Timestamp|Classify|not found|No inbound/i.test(error.message) ? 400 : 500;
-      send(response, status, { error: error.message });
+      const status = error.status ?? (/required|Timestamp|Classify|not found|No inbound|Telegram/i.test(error.message) ? 400 : 500);
+      const message = String(error.message ?? "").replace(/bot\d{6,12}:[A-Za-z0-9_-]{30,}/g, "bot[token]");
+      send(response, status, { error: message });
     }
   });
 
@@ -140,6 +177,7 @@ export async function startServer(options = {}) {
     db,
     engine,
     async close() {
+      telegram.stop();
       engine.stop();
       await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
       db.close();

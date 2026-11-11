@@ -78,7 +78,12 @@ CREATE TABLE IF NOT EXISTS alerts (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  delivered INTEGER NOT NULL DEFAULT 0
+  delivered INTEGER NOT NULL DEFAULT 0,
+  telegram_sent INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS cursors (
   chain TEXT PRIMARY KEY,
@@ -136,6 +141,10 @@ export function openDatabase(file) {
   if (file !== ":memory:") fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec(SCHEMA);
+  const alertColumns = db.prepare("PRAGMA table_info(alerts)").all();
+  if (!alertColumns.some((column) => column.name === "telegram_sent")) {
+    db.exec("ALTER TABLE alerts ADD COLUMN telegram_sent INTEGER NOT NULL DEFAULT 0");
+  }
   return {
     db,
     close() {
@@ -254,8 +263,8 @@ export function openDatabase(file) {
     },
     insertAlerts(alerts) {
       const insert = db.prepare(`
-        INSERT OR IGNORE INTO alerts(id, kind, chain, token_address, competitor_id, title, body, created_at, delivered)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+        INSERT OR IGNORE INTO alerts(id, kind, chain, token_address, competitor_id, title, body, created_at, delivered, telegram_sent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
       `);
       const created = [];
       for (const alert of alerts) {
@@ -274,6 +283,28 @@ export function openDatabase(file) {
     markDelivered(ids) {
       const update = db.prepare("UPDATE alerts SET delivered = 1 WHERE id = ?");
       for (const id of ids) update.run(id);
+    },
+    pendingTelegram(since) {
+      return db.prepare(`
+        SELECT id, kind, chain, token_address AS tokenAddress, competitor_id AS competitorId, title, body, created_at AS createdAt
+        FROM alerts WHERE telegram_sent = 0 AND created_at >= ?
+        ORDER BY created_at ASC, rowid ASC
+      `).all(since);
+    },
+    markTelegramSent(id) {
+      return db.prepare("UPDATE alerts SET telegram_sent = 1 WHERE id = ?").run(id).changes > 0;
+    },
+    getSetting(key) {
+      return db.prepare("SELECT value FROM settings WHERE key = ?").get(key)?.value ?? null;
+    },
+    setSetting(key, value) {
+      db.prepare(`
+        INSERT INTO settings(key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run(key, value);
+    },
+    deleteSetting(key) {
+      db.prepare("DELETE FROM settings WHERE key = ?").run(key);
     },
     cursor() {
       return db.prepare("SELECT last_block AS lastBlock FROM cursors WHERE chain = 'ethereum'").get()?.lastBlock ?? null;

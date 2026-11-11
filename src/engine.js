@@ -36,6 +36,7 @@ export function createEngine(options) {
   const goplus = options.goplus ?? readGoPlus;
   const dextools = options.dextools ?? readDexTools;
   const trending = options.trending ?? readTrendingRanks;
+  const onAlerts = options.onAlerts;
   const status = {
     head: null,
     lastBlock: null,
@@ -46,6 +47,12 @@ export function createEngine(options) {
   };
   let timer = null;
   let ticking = false;
+
+  function storeAlerts(alerts) {
+    const created = db.insertAlerts(alerts);
+    if (created.length && onAlerts) Promise.resolve(onAlerts(created)).catch(() => {});
+    return created;
+  }
 
   async function resolveFunder(creator) {
     const cached = db.getCreator(creator);
@@ -239,7 +246,7 @@ export function createEngine(options) {
     const alerts = planAlerts(previous, next);
     db.saveToken(next);
     if (income?.lines) db.replaceIncomeLines(address, income.lines);
-    const createdAlerts = db.insertAlerts(alerts);
+    const createdAlerts = storeAlerts(alerts);
     return {
       token: db.getToken(address),
       lines: db.incomeLines(address),
@@ -335,7 +342,7 @@ export function createEngine(options) {
     };
     const alerts = planAlerts(current, next);
     db.saveToken(next);
-    return { token: db.getToken(address), alerts: db.insertAlerts(alerts) };
+    return { token: db.getToken(address), alerts: storeAlerts(alerts) };
   }
 
   async function refreshTrending() {
