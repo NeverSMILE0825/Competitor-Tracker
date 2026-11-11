@@ -61,7 +61,15 @@ async function refresh() {
   const watcher = health.watching ? `watching ${health.lastBlock ?? "…"}` : "watcher off";
   const behind = health.behind ? `, ${health.behind} blocks behind` : "";
   const problem = health.lastError ? ` · ${health.lastError}` : "";
-  const telegram = health.telegram?.enabled ? `Telegram on for chat ${health.telegram.chatId}` : "Telegram off";
+  const telegram = health.telegram?.enabled
+    ? `Telegram on for chat ${health.telegram.chatId}`
+    : health.telegram?.saved
+      ? `Telegram off, saved for chat ${health.telegram.chatId}`
+      : "Telegram off";
+  const chatInput = document.querySelector("#telegram-chat");
+  if (health.telegram?.chatId && chatInput.value === "" && document.activeElement !== chatInput) {
+    chatInput.value = health.telegram.chatId;
+  }
   const telegramError = health.telegram?.lastError ? ` · ${health.telegram.lastError}` : "";
   statusNode.textContent = `${watcher}${behind}${problem}. ${telegram}${telegramError}. DexTools is blank until a browser observation arrives. Income is the creator's net quote, gas excluded.`;
 
@@ -210,11 +218,20 @@ document.querySelector("#telegram-test").addEventListener("click", async () => {
   }
 });
 
+document.querySelector("#telegram-on").addEventListener("click", async () => {
+  try {
+    const saved = await request("/api/telegram/enable", { method: "POST" });
+    telegramNote.textContent = `Telegram is on. Alerts will go to chat ${saved.chatId}.`;
+    await refresh();
+  } catch (error) {
+    telegramNote.textContent = error.message;
+  }
+});
+
 document.querySelector("#telegram-off").addEventListener("click", async () => {
   try {
     await request("/api/telegram", { method: "DELETE" });
-    document.querySelector("#telegram-chat").value = "";
-    telegramNote.textContent = "Telegram alerts are off.";
+    telegramNote.textContent = "Telegram alerts are off. Turn on resumes the saved chat.";
     await refresh();
   } catch (error) {
     telegramNote.textContent = error.message;

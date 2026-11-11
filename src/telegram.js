@@ -8,8 +8,7 @@ export function createTelegramNotifier(options) {
   let sending = false;
   let timer = null;
 
-  function resolve() {
-    if (db.getSetting("telegram_disabled") === "1") return null;
+  function storedConfig() {
     const savedToken = db.getSetting("telegram_token");
     const savedChat = db.getSetting("telegram_chat_id");
     if (savedToken && savedChat) return { token: savedToken, chatId: savedChat };
@@ -19,11 +18,18 @@ export function createTelegramNotifier(options) {
     return null;
   }
 
+  function resolve() {
+    if (db.getSetting("telegram_disabled") === "1") return null;
+    return storedConfig();
+  }
+
   function status() {
-    const config = resolve();
+    const active = resolve();
+    const stored = storedConfig();
     return {
-      enabled: Boolean(config),
-      chatId: config?.chatId ?? null,
+      enabled: Boolean(active),
+      saved: Boolean(stored),
+      chatId: (active ?? stored)?.chatId ?? null,
       lastError,
     };
   }
@@ -40,10 +46,22 @@ export function createTelegramNotifier(options) {
   }
 
   function disable() {
-    db.deleteSetting("telegram_token");
-    db.deleteSetting("telegram_chat_id");
-    db.deleteSetting("telegram_enabled_at");
     db.setSetting("telegram_disabled", "1");
+    db.deleteSetting("telegram_enabled_at");
+    lastError = null;
+    holdUntil = 0;
+    return status();
+  }
+
+  function enable() {
+    if (!storedConfig()) {
+      const error = new Error("Save the bot token and chat id first");
+      error.status = 400;
+      throw error;
+    }
+    const wasOff = db.getSetting("telegram_disabled") === "1" || db.getSetting("telegram_enabled_at") == null;
+    db.deleteSetting("telegram_disabled");
+    if (wasOff) db.setSetting("telegram_enabled_at", String(Date.now()));
     lastError = null;
     holdUntil = 0;
     return status();
@@ -128,12 +146,13 @@ export function createTelegramNotifier(options) {
     status,
     save,
     disable,
+    enable,
     check,
     discover,
     sendTest,
     flush,
     token() {
-      return resolve()?.token ?? null;
+      return storedConfig()?.token ?? null;
     },
     start() {
       if (timer) return;

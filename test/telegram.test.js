@@ -92,6 +92,32 @@ test("a rejected Telegram send stays unsent and hides the bot token", async () =
   db.close();
 });
 
+test("turn off keeps the saved chat and turn on skips alerts from the pause", async () => {
+  const db = openDatabase(":memory:");
+  const sent = [];
+  const notifier = createTelegramNotifier({
+    db,
+    async call(_token, method, payload) {
+      sent.push({ method, text: payload.text });
+      return { ok: true, result: { message_id: sent.length } };
+    },
+  });
+  notifier.save({ token: TOKEN, chatId: CHAT });
+  await wait(5);
+  const off = notifier.disable();
+  assert.equal(off.enabled, false);
+  assert.equal(off.saved, true);
+  assert.equal(off.chatId, CHAT);
+  db.insertAlerts([sample("paused", "Rugged · DACITY", "while off")]);
+  await wait(5);
+  assert.equal(notifier.enable().enabled, true);
+  await wait(5);
+  db.insertAlerts([sample("live", "Ban status · DACITY", "clear → banned")]);
+  await notifier.flush();
+  assert.deepEqual(sent.map((item) => item.text), ["Ban status · DACITY\nclear → banned"]);
+  db.close();
+});
+
 test("an environment bot does not replay alerts already stored", async () => {
   const db = openDatabase(":memory:");
   db.insertAlerts([sample("old", "Contract started · OLD", "before")]);
@@ -192,9 +218,17 @@ test("telegram routes never return the bot token", async () => {
     const health = await (await fetch(`${server.url}/api/health`)).json();
     assert.equal(JSON.stringify(health).includes(TOKEN), false);
 
-    assert.equal((await (await fetch(`${server.url}/api/telegram`, { method: "DELETE" })).json()).enabled, false);
+    const off = await (await fetch(`${server.url}/api/telegram`, { method: "DELETE" })).json();
+    assert.equal(off.enabled, false);
+    assert.equal(off.saved, true);
+    assert.equal(off.chatId, "77");
     const quiet = await fetch(`${server.url}/api/telegram/test`, { method: "POST" });
     assert.equal(quiet.status, 400);
+    const on = await (await fetch(`${server.url}/api/telegram/enable`, { method: "POST" })).json();
+    assert.equal(on.enabled, true);
+    assert.equal(on.chatId, "77");
+    assert.equal(Object.hasOwn(on, "token"), false);
+    assert.equal((await fetch(`${server.url}/api/telegram/test`, { method: "POST" })).status, 200);
   } finally {
     await server.close();
   }

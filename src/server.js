@@ -78,6 +78,9 @@ export async function startServer(options = {}) {
       if (request.method === "DELETE" && url.pathname === "/api/telegram") {
         return send(response, 200, telegram.disable());
       }
+      if (request.method === "POST" && url.pathname === "/api/telegram/enable") {
+        return send(response, 200, telegram.enable());
+      }
       if (request.method === "POST" && url.pathname === "/api/telegram/discover") {
         const body = await readBody(request);
         const token = assertTelegramToken(String(body.token ?? "").trim() || telegram.token() || "");
