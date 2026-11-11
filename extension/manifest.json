@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Competitor Tracker Alerts",
+  "version": "1.0.0",
+  "description": "Shows competitor tracker alerts as Chrome notifications.",
+  "permissions": ["notifications", "alarms"],
+  "host_permissions": ["http://127.0.0.1:8787/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "128": "icon.png"
+  }
+}

@@ -1,0 +1,19 @@
+---
+description: Push codebase updates to the Competitor-Tracker GitHub repo
+alwaysApply: true
+---
+
+# Push updates to GitHub
+
+Remote: `https://github.com/NeverSMILE0825/Competitor-Tracker.git` (`origin`).
+
+After a requested code change is finished, commit it and push to `origin` on the current branch.
+
+- Commit only the files that belong to that change.
+- Leave out `node_modules/`, `data/`, `.env`, and credential files.
+- Do not force-push, skip hooks, or change git config.
+- If the push fails, say so and leave the local commit in place.
+
+```powershell
+git push -u origin HEAD
+```

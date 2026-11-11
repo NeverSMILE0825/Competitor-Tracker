@@ -1,0 +1,14 @@
+{
+  "name": "competitor-tracking-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test test/core.test.js",
+    "test:live": "node --test test/live.test.js"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0"
+  }
+}

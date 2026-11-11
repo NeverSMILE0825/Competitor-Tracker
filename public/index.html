@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Competitor tracker</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Competitor tracker</h1>
+      <p id="status">Connecting…</p>
+    </div>
+    <button id="refresh-trending" type="button">Refresh trending</button>
+  </header>
+  <main>
+    <section>
+      <h2>Competitors</h2>
+      <form id="competitor-form">
+        <input id="competitor-label" name="label" placeholder="Label" required>
+        <input id="competitor-address" name="address" placeholder="0x… funder or creator" required spellcheck="false">
+        <select id="competitor-kind" name="watchKind">
+          <option value="funder">Funded by this address</option>
+          <option value="creator">This creator</option>
+        </select>
+        <button id="add-competitor" type="submit">Add</button>
+      </form>
+      <ul id="competitors"></ul>
+    </section>
+    <section>
+      <h2>Classify a token</h2>
+      <form id="classify-form">
+        <input id="token-address" name="address" placeholder="Token contract 0x…" required spellcheck="false">
+        <button id="classify" type="submit">Classify</button>
+      </form>
+      <p id="classify-note"></p>
+    </section>
+    <section class="wide">
+      <h2>Tracked tokens</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Competitor</th>
+              <th>Creator</th>
+              <th>Funded by</th>
+              <th>MCap</th>
+              <th>Pooled</th>
+              <th>24h vol</th>
+              <th>24h tx</th>
+              <th>Total swaps</th>
+              <th>Income</th>
+              <th>Dex paid</th>
+              <th>Trending</th>
+              <th>Hot</th>
+              <th>Rug</th>
+              <th>Ban</th>
+            </tr>
+          </thead>
+          <tbody id="tokens"></tbody>
+        </table>
+      </div>
+      <pre id="detail"></pre>
+    </section>
+    <section>
+      <h2>Alerts</h2>
+      <ul id="alerts"></ul>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
